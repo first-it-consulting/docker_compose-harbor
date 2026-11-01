@@ -1,0 +1,28 @@
+---
+version: "3"
+
+vars:
+  INVENTORY: "{{.ANSIBLE_DIR}}/inventory/truenas"
+
+tasks:
+
+  ps:
+    desc: Show running Harbor containers (docker compose)
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker compose -f /opt/harbor/compose.yaml ps'
+
+  version:
+    desc: Show Docker version on hosts
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker version'
+
+  info:
+    desc: Show Docker system info on hosts
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker info'
+
+  restart:daemon:
+    desc: Restart Docker daemon on hosts (if needed)
+    dir: "{{.ANSIBLE_DIR}}"
+    interactive: true
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'systemctl restart docker'

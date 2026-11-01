@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Patch docker-compose.yml so the postgresql service stores its data on a local
+disk bind mount instead of the NFS share.
+
+The TrueNAS NFS share applies root_squash, which maps writes to uid 0 server-side.
+PostgreSQL runs as uid 999 and cannot initialize its data directory there (it fails
+with "data directory has wrong ownership" / "Permission denied"). Local disk avoids
+TrueNAS entirely for the database.
+
+Only the volume mounted at /var/lib/postgresql/data is touched, so this is safe to
+re-run: it detects whether a change is needed and reports its result on stdout.
+"""
+import re
+import sys
+
+import yaml  # PyYAML is present in the ansible control node environment.
+
+compose_path = "{{ harbor_install_dir }}/docker-compose.yml"
+local_data = "{{ postgres_data_dir }}"
+
+with open(compose_path) as fh:
+    data = yaml.safe_load(fh)
+
+svc = data.get("services", {}).get("postgresql")
+if not isinstance(svc, dict):
+    print(f"ERROR: postgresql service not found in {compose_path}")
+    sys.exit(1)
+
+vols = svc.get("volumes", []) or []
+new_vols = []
+changed = False
+for v in vols:
+    if isinstance(v, dict) and v.get("target") == "/var/lib/postgresql/data":
+        # Only rewrite when the source isn't already our local mount, so re-runs
+        # are idempotent (a second patch reports "no-change" and skips the restart).
+        if v.get("source") == local_data:
+            new_vols.append(v)
+            continue
+        changed = True
+        new_vols.append(
+            {
+                "type": "bind",
+                "source": local_data,
+                "target": "/var/lib/postgresql/data",
+            }
+        )
+    else:
+        new_vols.append(v)
+
+if not any(
+    isinstance(v, dict) and v.get("target") == "/var/lib/postgresql/data"
+    for v in new_vols
+):
+    print(f"ERROR: no /var/lib/postgresql/data volume found in postgresql service")
+    sys.exit(1)
+
+svc["volumes"] = new_vols
+
+with open(compose_path, "w") as fh:
+    yaml.safe_dump(data, fh, default_flow_style=False, sort_keys=True)
+
+print("patched" if changed else "no-change")

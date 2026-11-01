@@ -1,0 +1,54 @@
+---
+version: "3"
+
+vars:
+  INVENTORY: "{{.ANSIBLE_DIR}}/inventory/truenas"
+  HARBOR_PLAYBOOK: "harbor-deploy.yml"
+  HARBOR_HOST: "{{.HARBOR_VERSION}}"
+
+tasks:
+
+  deploy:
+    desc: Deploy Harbor
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook -i {{.INVENTORY}} {{.HARBOR_PLAYBOOK}}
+
+  deploy:check:
+    desc: Deploy Harbor in check mode (dry-run)
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook -i {{.INVENTORY}} {{.HARBOR_PLAYBOOK}} --check
+
+  status:
+    desc: Check Harbor container status via docker compose
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker compose -f /opt/harbor/compose.yaml ps'
+
+  logs:
+    desc: View Harbor core service logs
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker compose -f /opt/harbor/compose.yaml logs --tail 100 harbor-core'
+
+  restart:
+    desc: Restart Harbor stack via docker compose
+    dir: "{{.ANSIBLE_DIR}}"
+    interactive: true
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker compose -f /opt/harbor/compose.yaml restart'
+
+  stop:
+    desc: Stop Harbor stack via docker compose
+    dir: "{{.ANSIBLE_DIR}}"
+    interactive: true
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker compose -f /opt/harbor/compose.yaml stop'
+
+  start:
+    desc: Start Harbor stack via docker compose
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --become -a 'docker compose -f /opt/harbor/compose.yaml start'
+
+  test:connection:
+    desc: Test Harbor registry API (login endpoint)
+    cmd: curl -s http://{{.HARBOR_HOST}}/v2/_catalog
+
+  list:images:
+    desc: List images in Harbor registry
+    cmd: curl -s http://{{.HARBOR_HOST}}/v2/_catalog | jq

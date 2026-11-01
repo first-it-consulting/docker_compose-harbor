@@ -1,0 +1,91 @@
+---
+# Harbor full-stack deploy (mirrors docker_docker-registry structure).
+# Strategy: download the official offline installer, generate harbor.yml for an
+# internal-only host (no TLS), then run install.sh which brings up the entire
+# compose stack with storage on the NFS mount created by server-bootstrap.
+
+- name: Ensure Harbor data directory exists on NFS
+  ansible.builtin.file:
+    path: "{{ harbor_data_volume }}"
+    state: directory
+    mode: '0755'
+
+- name: Ensure Harbor install directory exists
+  ansible.builtin.file:
+    path: "{{ harbor_install_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Download Harbor offline installer (if not already present)
+  ansible.builtin.get_url:
+    url: "{{ harbor_installer_url }}"
+    dest: "/tmp/harbor-offline.tgz"
+    mode: '0644'
+  register: harbor_download
+  until: harbor_download is succeeded
+  retries: 5
+  delay: 10
+
+- name: Extract Harbor installer into install directory
+  ansible.builtin.unarchive:
+    src: "/tmp/harbor-offline.tgz"
+    dest: "{{ harbor_install_dir }}"
+    remote_src: yes
+    extra_opts: ["--strip-components=1"]
+
+- name: Generate harbor.yml from template
+  ansible.builtin.template:
+    src: harbor.yml.j2
+    dest: "{{ harbor_install_dir }}/harbor.yml"
+    mode: '0644'
+
+- name: Check if Harbor is already deployed (compose stack present)
+  ansible.builtin.command:
+    cmd: "docker compose -f {{ harbor_install_dir }}/docker-compose.yml ps"
+  register: harbor_running_containers
+  changed_when: false
+  failed_when: false
+
+- name: Run Harbor installer (brings up full stack via docker compose)
+  ansible.builtin.command:
+    cmd: "./install.sh"
+    chdir: "{{ harbor_install_dir }}"
+  when: '"harbor-core" not in (harbor_running_containers.stdout | default(""))'
+  args:
+    executable: /bin/bash
+
+- name: Ensure local PostgreSQL data directory exists (uid 999, mode 0700)
+  ansible.builtin.file:
+    path: "{{ postgres_data_dir }}"
+    owner: '999'
+    group: '999'
+    state: directory
+    mode: '0700'
+
+- name: Deploy PostgreSQL storage patch script
+  ansible.builtin.template:
+    src: patch_postgres_storage.py.j2
+    dest: "{{ harbor_install_dir }}/patch_postgres_storage.py"
+    mode: '0755'
+
+- name: Apply PostgreSQL storage patch (NFS -> local disk)
+  ansible.builtin.command: "python3 {{ harbor_install_dir }}/patch_postgres_storage.py"
+  args:
+    chdir: "{{ harbor_install_dir }}"
+  register: harbor_patch_result
+  changed_when: "'patched' in harbor_patch_result.stdout"
+
+- name: Restart PostgreSQL service to pick up local storage
+  ansible.builtin.command: "docker compose -f {{ harbor_install_dir }}/docker-compose.yml up -d postgresql"
+  changed_when: (harbor_patch_result is succeeded) and ('patched' in harbor_patch_result.stdout)
+  when: (harbor_patch_result is succeeded) and ('patched' in harbor_patch_result.stdout)
+
+- name: Verify Harbor stack is up (all containers running)
+  ansible.builtin.command: "docker compose -f {{ harbor_install_dir }}/docker-compose.yml ps"
+  register: harbor_status
+  changed_when: false
+  failed_when: '"harbor-core" not in (harbor_status.stdout)'
+
+- name: Display Harbor deployment status
+  ansible.builtin.debug:
+    msg: "Harbor stack deployed. Access at http://{{ harbor_hostname }}"

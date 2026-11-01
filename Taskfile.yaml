@@ -1,0 +1,78 @@
+---
+version: "3"
+
+vars:
+  PYTHON_BIN: python3
+  ANSIBLE_DIR: "{{.ROOT_DIR}}"
+  ANSIBLE_INVENTORY_DIR: "{{.ROOT_DIR}}/inventory"
+  INVENTORY: "{{.ANSIBLE_INVENTORY_DIR}}/truenas"
+  HARBOR_PLAYBOOK: "harbor-deploy.yml"
+  HARBOR_HOST: "{{.HARBOR_VERSION}}"
+
+env:
+  PATH: "{{.ROOT_DIR}}/venv/bin:$PATH"
+  VIRTUAL_ENV: "{{.ROOT_DIR}}/venv"
+  ANSIBLE_COLLECTIONS_PATH: "{{.ROOT_DIR}}/venv/galaxy"
+  ANSIBLE_ROLES_PATH: "{{.ROOT_DIR}}/venv/galaxy/ansible_roles"
+  ANSIBLE_FORCE_COLOR: "true"
+
+includes:
+  ansible: .taskfiles/AnsibleTasks.yaml
+  harbor: .taskfiles/HarborTasks.yaml
+  docker: .taskfiles/DockerTasks.yaml
+
+tasks:
+
+  default:
+    desc: List all available tasks
+    cmds:
+      - task -l
+
+  venv:
+    desc: Create a Python virtual env and install required packages
+    cmds:
+      - "{{.PYTHON_BIN}} -m venv {{.ROOT_DIR}}/venv"
+      - venv/bin/python3 -m pip install --upgrade pip setuptools wheel
+      - venv/bin/python3 -m pip install --upgrade ansible ansible-lint
+      - test -f "{{.ROOT_DIR}}/requirements.txt" && venv/bin/python3 -m pip install --upgrade --requirement "{{.ROOT_DIR}}/requirements.txt" || true
+      - test -f "{{.ROOT_DIR}}/requirements.yml" && venv/bin/ansible-galaxy install --role-file "{{.ROOT_DIR}}/requirements.yml" --force || true
+
+  deploy:
+    desc: Deploy Harbor
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook -i {{.INVENTORY}} {{.HARBOR_PLAYBOOK}}
+
+  deploy-check:
+    desc: Deploy Harbor in check mode (dry-run)
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook -i {{.INVENTORY}} {{.HARBOR_PLAYBOOK}} --check
+
+  validate:
+    desc: Validate harbor playbook syntax
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook -i {{.INVENTORY}} {{.HARBOR_PLAYBOOK}} --syntax-check
+
+  lint:
+    desc: Lint harbor playbook
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-lint {{.HARBOR_PLAYBOOK}}
+
+  list:
+    desc: List Docker hosts from inventory
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --list-hosts
+
+  ping:
+    desc: Test connectivity to Docker hosts
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} -m ping
+
+  build:
+    desc: Build Harbor installer (if applicable)
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: bash build.sh
+
+  apply:
+    desc: Run apply script
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: bash apply.sh

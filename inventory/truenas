@@ -1,0 +1,2 @@
+[docker_hosts]
+harbor-01 ansible_user=ubuntu

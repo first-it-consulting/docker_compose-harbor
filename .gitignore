@@ -1,0 +1,9 @@
+.idea
+.jobs.groovy
+.bundle
+vendor
+*.retry
+version.properties
+venv/
+.envrc
+.env

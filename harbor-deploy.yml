@@ -1,0 +1,9 @@
+---
+- name: Deploy Harbor Docker Registry (NFS-backed, full stack)
+  hosts: docker_hosts
+  become: yes
+  vars_files:
+    - roles/docker_compose-harbor/defaults/main.yml
+
+  roles:
+    - docker_compose-harbor

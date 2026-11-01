@@ -1,0 +1,38 @@
+---
+# =============================================================================
+# Harbor Docker Registry - full stack deployment defaults
+# -----------------------------------------------------------------------------
+# Internal-only registry for first-it-consulting.com. No SSL/TLS (internal DNS).
+# Storage lives on the NFS server mounted by server-bootstrap at /mnt/nfs_share.
+# Mirrors the docker_docker-registry deploy pattern in structure and taskfiles.
+# =============================================================================
+
+# --- Harbor version / installer ---
+harbor_version: "2.10.3"
+# Offline tarball contains the images so no per-service pull is needed on deploy.
+harbor_installer_url: "https://github.com/goharbor/harbor/releases/download/v{{ harbor_version }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
+harbor_install_dir: "/opt/harbor"
+
+# --- Internal hostname (internal DNS) ---
+harbor_hostname: "harbor.first-it-consulting.com"
+
+# --- NFS-backed storage (mounted at /mnt/nfs_share by server-bootstrap) ---
+nfs_mount_path: "/mnt/nfs_share"
+harbor_data_volume: "{{ nfs_mount_path }}/harbor/data"
+
+# --- Local PostgreSQL data directory (uid 999) ---
+# PostgreSQL cannot write to the NFS share under TrueNAS root_squash, so it uses a
+# local bind mount instead. Everything else (core data, registry, redis) stays NFS.
+postgres_data_dir: "/opt/harbor/postgres_data"
+
+# --- Registry port (no TLS - internal only) ---
+harbor_registry_port: "5000"
+
+# --- Harbor core / portal port ---
+harbor_http_port: "80"
+
+# --- Auth defaults (set later via Harbor UI; kept here so install succeeds) ---
+harbor_password: "Harbor12345"
+
+# --- TLS (disabled - internal only) ---
+harbor_use_tls: false

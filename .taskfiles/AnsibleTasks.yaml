@@ -1,0 +1,58 @@
+---
+version: "3"
+
+vars:
+  ANSIBLE_INVENTORY_DIR: "{{.ANSIBLE_DIR}}/inventory"
+  INVENTORY: "{{.ANSIBLE_INVENTORY_DIR}}/truenas"
+
+tasks:
+
+  list:roles:
+    desc: List all available Ansible roles
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ls -1 roles/
+
+  validate:
+    desc: Validate Ansible playbook syntax
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook -i {{.INVENTORY}} harbor-deploy.yml --syntax-check
+
+  lint:
+    desc: Lint Ansible playbook
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-lint harbor-deploy.yml || true
+
+  galaxy:install:
+    desc: Install Ansible Galaxy requirements
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: test -f requirements.yml && ansible-galaxy install --role-file requirements.yml --force || echo "No requirements.yml found"
+
+  galaxy:list:
+    desc: List installed Ansible Galaxy collections and roles
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-galaxy list
+
+  config:
+    desc: Show Ansible configuration
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-config dump
+
+  list:
+    desc: List Docker hosts from inventory
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --list-hosts
+
+  ping:
+    desc: Test connectivity to Docker hosts
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} -m ping
+
+  uptime:
+    desc: Get uptime of Docker hosts
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} --one-line -a 'uptime'
+
+  facts:
+    desc: Gather facts from Docker hosts
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible docker_hosts -i {{.INVENTORY}} -m setup
