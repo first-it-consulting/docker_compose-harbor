@@ -8,7 +8,7 @@
 # =============================================================================
 
 # --- Harbor version / installer ---
-harbor_version: "2.10.3"
+harbor_version: "2.15.5"
 # Offline tarball contains the images so no per-service pull is needed on deploy.
 harbor_installer_url: "https://github.com/goharbor/harbor/releases/download/v{{ harbor_version }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
 harbor_install_dir: "/opt/harbor"
